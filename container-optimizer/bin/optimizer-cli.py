@@ -5,7 +5,7 @@ import json
 import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description="Antigravity Optimization Gate CLI")
+    parser = argparse.ArgumentParser(description="Dockerfile Optimizer Gate CLI")
     parser.add_argument("--file", default="Dockerfile", help="Path to the Dockerfile")
     parser.add_argument("--server", required=True, help="Base URL of the Optimizer API")
     parser.add_argument("--apply", action="store_true", help="Apply optimizations locally")
@@ -27,7 +27,7 @@ def main():
     with open(args.file, 'r') as f:
         content = f.read()
 
-    print(f"📡 Sending to Antigravity ({api_url})...")
+    print(f"📡 Sending to Optimizer Service ({api_url})...")
     
     try:
         response = requests.post(f"{api_url}/analyze-dockerfile", json={"content": content}, timeout=60)
@@ -54,19 +54,24 @@ def main():
                 print("✅ Done! Build will now use the optimized file.")
 
             elif args.create_pr:
+                if optimized_content.strip() == content.strip():
+                    print("\n✅ Your Dockerfile is already fully optimized! No PR needed.")
+                    print("🎉 Analysis Complete. Proceeding with build.")
+                    sys.exit(0)
+
                 if not args.repo_url:
                     print("❌ Error: --repo-url is required for --create-pr")
                     sys.exit(1)
                 
                 print(f"\n🚀 Initiating Pull Request for consent in {args.repo_url}...")
                 if not args.github_token:
-                    print("ℹ️ No token provided. Using Antigravity Service Bot identity.")
+                    print("ℹ️ No token provided. Using Optimizer Service Bot identity.")
                 pr_payload = {
                     "url": args.repo_url,
                     "updates": [{"path": args.file, "content": optimized_content}],
                     "token": args.github_token,
-                    "pr_title": "✨ [Antigravity] Better Dockerfile (Security & Performance)",
-                    "commit_message": "chore: optimize Dockerfile via Antigravity"
+                    "pr_title": "✨ [Optimizer] Better Dockerfile (Security & Performance)",
+                    "commit_message": "chore: optimize Dockerfile via Optimizer"
                 }
                 pr_resp = requests.post(f"{api_url}/create-bulk-pr", json=pr_payload)
                 
