@@ -1,0 +1,38 @@
+name: Build Docker Image (Cross-Account PR)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# --- MANDATORY PERMISSIONS ---
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Antigravity Cross-Account Gate
+        env:
+          OPTIMIZER_SERVER: 'https://app-optimizer-v11-1770717070.azurewebsites.net/api'
+          # Use the secret name you just added in GitHub
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }} 
+        run: |
+          # 1. Download tool
+          curl -sSL https://raw.githubusercontent.com/codeayush004/version2/main/container-optimizer/bin/optimizer-cli.py -o optimizer-cli.py
+          
+          # 2. Trigger Fork & PR
+          python3 optimizer-cli.py \
+            --file Dockerfile \
+            --server "$OPTIMIZER_SERVER" \
+            --create-pr \
+            --repo-url "https://github.com/ShadowAyush04/new" \
+            --github-token "$GH_TOKEN"
+            
+      - name: Build Docker image
+        run: docker build . -t bad-docker-app
