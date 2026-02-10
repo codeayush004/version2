@@ -2,7 +2,8 @@ name: Build Docker Image (Cross-Account PR)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 # --- MANDATORY PERMISSIONS ---
 permissions:
