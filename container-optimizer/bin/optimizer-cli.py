@@ -54,7 +54,10 @@ def main():
                 print("✅ Done! Build will now use the optimized file.")
 
             elif args.create_pr:
-                if optimized_content.strip() == content.strip():
+                def normalize(c):
+                    return "\n".join(l.strip() for l in c.replace("\r\n", "\n").strip().splitlines() if l.strip())
+                
+                if normalize(optimized_content) == normalize(content):
                     print("\n✅ Your Dockerfile is already fully optimized! No PR needed.")
                     print("🎉 Analysis Complete. Proceeding with build.")
                     sys.exit(0)
