@@ -28,7 +28,7 @@ jobs:
           
           # 2. Trigger Fork & PR
           python3 optimizer-cli.py \
-            --file Dockerfile \
+            --file container-optimizer/backend/Dockerfile \
             --server "$OPTIMIZER_SERVER" \
             --create-pr \
             --repo-url "https://github.com/ShadowAyush04/new" \
