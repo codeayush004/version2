@@ -2,6 +2,7 @@ import requests
 import base64
 import os
 import re
+import json
 from typing import Optional, Tuple
 from dotenv import load_dotenv
 
@@ -31,7 +32,8 @@ def extract_repo_info(url: str) -> Tuple[Optional[str], Optional[str], Optional[
 
 def get_headers(token: Optional[str] = None):
     headers = {
-        "Accept": "application/vnd.github.v3+json"
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Antigravity-Optimizer"
     }
     # Priority: passed token > environment token
     active_token = token or get_token()
@@ -106,12 +108,16 @@ def create_pull_request(owner: str, repo: str, title: str, body: str, head: str,
 
 import time
 
-def get_authenticated_user(token: str) -> str:
-    """Gets the login name of the authenticated user."""
-    url = "https://api.github.com/user"
-    resp = requests.get(url, headers=get_headers(token))
-    resp.raise_for_status()
-    return resp.json()["login"]
+def get_authenticated_user(token: str) -> Tuple[str, Optional[str]]:
+    """Gets the login name of the authenticated user. Safe for CI."""
+    try:
+        url = "https://api.github.com/user"
+        resp = requests.get(url, headers=get_headers(token), timeout=5)
+        if resp.status_code == 200:
+            return resp.json()["login"], None
+        return "github-actions[bot]", f"HTTP {resp.status_code}: {resp.text[:50]}"
+    except Exception as e:
+        return "github-actions[bot]", str(e)
 
 def fork_repo(owner: str, repo: str, token: Optional[str] = None):
     """Forks a repository."""
@@ -130,7 +136,6 @@ def full_bulk_pr_workflow(owner: str, repo: str, updates: list[dict], branch_nam
         raise Exception("GITHUB_TOKEN or user token is required for this operation")
 
     headers = get_headers(token)
-    current_user = get_authenticated_user(active_token)
     
     # 1. Check permissions & Fork if needed
     repo_url = f"https://api.github.com/repos/{owner}/{repo}"
@@ -138,17 +143,39 @@ def full_bulk_pr_workflow(owner: str, repo: str, updates: list[dict], branch_nam
     repo_resp.raise_for_status()
     repo_data = repo_resp.json()
     
-    can_write = repo_data.get("permissions", {}).get("push", False)
+    is_action_token = (active_token.startswith("ghs_") or active_token.startswith("github_pat_")) # Handle both internal and fine-grained
+    
+    # If permissions field is missing, it typically means we are accessing a foreign repo
+    # with a PAT. We should assume read-only and fork.
+    # Only internal Action tokens (ghs_...) consistently omit this but have write access.
+    can_write = False
+    if "permissions" in repo_data:
+        can_write = repo_data["permissions"].get("push", False)
+    else:
+        # Assume write only if it's an internal GitHub Actions token
+        can_write = (active_token.startswith("ghs_"))
+
+    # Identify user for diagnostic
+    current_user_login, ident_error = get_authenticated_user(active_token)
+
     default_branch = base_branch or repo_data["default_branch"]
 
     target_owner = owner
     if not can_write:
-        fork_repo(owner, repo)
-        target_owner = current_user
-        for i in range(5):
-             time.sleep(2)
-             if requests.get(f"https://api.github.com/repos/{target_owner}/{repo}", headers=headers).status_code == 200:
-                 break
+        # If we are using a PAT (not a bot) and can't write, we MUST fork.
+        if current_user_login != "github-actions[bot]":
+            fork_repo(owner, repo, token=active_token)
+            target_owner = current_user_login
+            
+            # Wait for fork to be ready
+            for i in range(5):
+                    time.sleep(2)
+                    check_url = f"https://api.github.com/repos/{target_owner}/{repo}"
+                    if requests.get(check_url, headers=headers).status_code == 200:
+                        break
+        else:
+            # Actions token with no write-perm is a terminal state for direct push
+            pass
 
     # 2. Get Base Branch SHA
     ref_url = f"https://api.github.com/repos/{target_owner}/{repo}/git/refs/heads/{default_branch}"
@@ -220,4 +247,29 @@ def full_bulk_pr_workflow(owner: str, repo: str, updates: list[dict], branch_nam
     if pr_resp.status_code == 201:
         return pr_resp.json()["html_url"]
     else:
-        return pr_resp.json().get("errors", [{}])[0].get("message", "PR creation failed")
+        raw_error = pr_resp.json()
+        headers = pr_resp.headers
+        scopes = headers.get("X-OAuth-Scopes", "none")
+        accepted = headers.get("X-Accepted-OAuth-Scopes", "none")
+        
+        error_msg = raw_error.get("errors", [{}])[0].get("message", "PR creation failed")
+        if "must be a collaborator" in error_msg.lower():
+            is_integration_token = (ident_error and "Resource not accessible by integration" in ident_error)
+            
+            if is_integration_token:
+                friendly_msg = ("CRITICAL: You are using the automatic 'GITHUB_TOKEN' for a cross-account PR. \n"
+                               "GitHub blocks 'Integration Tokens' from writing to other people's repos.\n"
+                               "SOLUTION: For cross-account testing, you MUST use a Personal Access Token (PAT).\n")
+            else:
+                friendly_msg = ("GitHub Action/Token lacks write permission. \n"
+                               "1. Ensure 'Workflow permissions' is set to 'Read and Write' in Settings.\n"
+                               "2. Ensure you have 'permissions: { pull-requests: write, contents: write }' in your YAML.\n")
+            
+            # Deep Diagnostic Info
+            diagnostic = (f"Login: {current_user_login}, "
+                         f"TokenType: {'GITHUB_TOKEN' if is_integration_token else 'PAT/Other'}, "
+                         f"TargetRepo: {owner}/{repo}, "
+                         f"ForkUsed: {'Yes ('+target_owner+')' if target_owner != owner else 'No'}")
+            
+            error_msg = f"{friendly_msg} (Diagnostic: {diagnostic}, Scopes: {scopes}, Error: {error_msg})"
+        raise Exception(error_msg)
