@@ -35,4 +35,4 @@ jobs:
             --github-token "$GH_TOKEN"
             
       - name: Build Docker image
-        run: docker build . -t bad-docker-app
+        run: docker build -f container-optimizer/backend/Dockerfile container-optimizer/backend -t bad-docker-app
