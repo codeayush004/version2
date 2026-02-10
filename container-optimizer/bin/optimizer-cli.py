@@ -54,11 +54,13 @@ def main():
                 print("✅ Done! Build will now use the optimized file.")
 
             elif args.create_pr:
-                if not args.repo_url or not args.github_token:
-                    print("❌ Error: --repo-url and --github-token are required for --create-pr")
+                if not args.repo_url:
+                    print("❌ Error: --repo-url is required for --create-pr")
                     sys.exit(1)
                 
-                print(f"\n🚀 Creating Pull Request for consent in {args.repo_url}...")
+                print(f"\n🚀 Initiating Pull Request for consent in {args.repo_url}...")
+                if not args.github_token:
+                    print("ℹ️ No token provided. Using Antigravity Service Bot identity.")
                 pr_payload = {
                     "url": args.repo_url,
                     "updates": [{"path": args.file, "content": optimized_content}],
