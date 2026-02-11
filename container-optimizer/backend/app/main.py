@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import containers, auth
+from app.api import containers, auth, consent
 import requests
 
 app = FastAPI(
@@ -36,6 +36,7 @@ app.add_middleware(
 
 app.include_router(containers.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(consent.router, prefix="/api")
 
 @app.get("/")
 def health():

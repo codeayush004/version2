@@ -33,7 +33,7 @@ def extract_repo_info(url: str) -> Tuple[Optional[str], Optional[str], Optional[
 def get_headers(token: Optional[str] = None):
     headers = {
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "Antigravity-Optimizer"
+        "User-Agent": "Optimizer-Service"
     }
     # Priority: passed token > environment token
     active_token = token or get_token()

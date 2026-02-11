@@ -56,9 +56,9 @@ CRITICAL MANDATES for logic accuracy:
 4. SECURITY:
    - Always implement a non-root USER with proper permissions.
    - Use fixed tags. NEVER use 'latest'.
-5. DEDUPLICATION TAGS:
-   - For every security warning, you MUST prefix it with a technical ID in brackets if applicable. 
-   - Examples: `[RUN_AS_ROOT]`, `[NO_VERSION_PINNING]`, `[MISSING_HEALTHCHECK]`, `[SECRET_EXPOSURE]`, `[HEAVY_IMAGE]`.
+6. IDEMPOTENCY:
+   - If the original Dockerfile provided in the context ALREADY complies with all mandates above (non-root, pinned tags, multi-stage, etc.), you MUST return the ORIGINAL string as the `optimized_dockerfile`. 
+   - DO NOT make minor formatting changes or add comments if the logic is already correct. This prevents duplicate PRs.
 """
 
     payload = {

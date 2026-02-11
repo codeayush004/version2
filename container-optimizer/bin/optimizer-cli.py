@@ -66,25 +66,37 @@ def main():
                     print("❌ Error: --repo-url is required for --create-pr")
                     sys.exit(1)
                 
-                print(f"\n🚀 Initiating Pull Request for consent in {args.repo_url}...")
-                if not args.github_token:
-                    print("ℹ️ No token provided. Using Optimizer Service Bot identity.")
-                pr_payload = {
-                    "url": args.repo_url,
-                    "updates": [{"path": args.file, "content": optimized_content}],
-                    "token": args.github_token,
-                    "pr_title": "✨ [Optimizer] Better Dockerfile (Security & Performance)",
-                    "commit_message": "chore: optimize Dockerfile via Optimizer"
-                }
-                pr_resp = requests.post(f"{api_url}/create-bulk-pr", json=pr_payload)
+                print(f"\n🚀 Registering Optimization Request for {args.repo_url}...")
                 
-                if pr_resp.status_code == 200:
-                    pr_data = pr_resp.json()
-                    print(f"✅ Success! Pull Request Created.")
-                    print(f"🔗 View and Merge here: {pr_data.get('message')}")
-                    print("\n💡 ONCE YOU MERGE THIS, your next build will be fully optimized!")
-                else:
-                    print(f"❌ Pull Request failed: {pr_resp.text}")
+                consent_payload = {
+                    "url": args.repo_url,
+                    "path": args.file,
+                    "original_content": content,
+                    "optimized_content": optimized_content
+                }
+                
+                try:
+                    consent_resp = requests.post(f"{api_url}/consent/register", json=consent_payload)
+                    consent_resp.raise_for_status()
+                    consent_id = consent_resp.json().get("consent_id")
+                    
+                    # For demo purposes, we derive the frontend URL from the server URL or use a default
+                    frontend_base = server_url.replace("app-optimizer", "optimizer-ui").replace(":8000", ":5173")
+                    # If on local dev uvicorn
+                    if "localhost:8000" in frontend_base:
+                        frontend_base = "http://localhost:5173"
+                    elif "azurewebsites.net" in frontend_base:
+                         # Assume frontend is at the root of the same app or a sibling app
+                         frontend_base = server_url.replace("/api", "") 
+
+                    review_url = f"{frontend_base}/review/{consent_id}"
+                    
+                    print(f"\n✨ Optimization Ready for Review!")
+                    print(f"👉 Please approve the changes here:")
+                    print(f"🔗 {review_url}")
+                    print(f"\n💡 Our Bot will create the PR ONLY after you click 'Approve'.")
+                except Exception as e:
+                    print(f"❌ Failed to register optimization: {e}")
             else:
                 print("\n💡 NOTE: Use --apply to swap files locally or --create-pr to request permission via PR.")
         else:
